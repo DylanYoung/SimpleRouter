@@ -7,7 +7,7 @@ from threading import Thread, Timer, Lock
 from argparse import ArgumentParser
 import os
 
-ACCESS_ADDR = 'localhost'
+ACCESS_ADDR = ''
 PORT = 23456
 FOUND = "FOUND\0\0\0\0"
 NOTFOUND = "NOTFOUND\0"
@@ -47,12 +47,11 @@ def serversocket(port):
 	s.bind((ACCESS_ADDR,port))
 	return s
 
-class ConnectionHandler(Thread):
+class ConnectionHandler:
 	def __init__(self, port = PORT, size = 255):
 		self.server = serversocket(port)
 		self.connections = {}
 		self.free = {i for i in range(size)}
-		self.connections[0] = RESERVED
 		self.free.remove(0)
 		self.__len__ = size
 
@@ -62,59 +61,72 @@ class ConnectionHandler(Thread):
 	def __str__(self):
 		return str(self.connections)
 
-	def __parse_message__(self, message):
-		mtuple = message.split(":", 2)
+	def __parse_message__(self, msg):
+		mtuple = msg.split(":", 2)
 		try: 
 			mtuple[0] = int(mtuple[0])
-			mtuple[1].trim()
+			mtuple[1] = mtuple[1].strip(" ")
 		except ValueError as e:
 			return -1
 		return mtuple
 
 	def __len__(self):
-		return self.__len__
+		return len(connections)
 
 	def add(self, client):
 		try:
 			n = self.free.pop()
 		except KeyError:
+			client[0].send("Sorry. The router is full.\r\n")
+			client[0].close()
 			print "Error: connection rejected"
 			return
-		client.send("n\r\n")
+		client[0].send(str(n)+"\r\n")
 		self.connections[n] = client
-		t = Thread(target=route, args=(self, client,n,))
+		t = Thread(target=self.route, args=(client[0],n,))
 		t.start()
 
 	def remove(self,key):
+		print "Removing connection " + str(key)
 		self.free.add(key);
-		self.connections.pop(key, ()).close()
+		c = self.connections.pop(key, None)
+		if c != None:
+			print "Removed address " + str(key) + ": " + str(c)
+			print "Free addresses: " + str(self.free)
+			c[0].close()
 
 	def route(self, client, n):
 		while 1:
 			try:
 				msg = client.recv(80)
-				mtuple = __parse_message__(message)
+				mtuple = self.__parse_message__(msg)
 				if mtuple == -1:
-					client.send("Error: invalid message \"" + message + "\"")
-				elif mtuple[0] < 1 or > len(self):
-					client.send("Error: " + mtuple[0] + " not found"
-				elif mtuple[0] == len(self):
-					self.broadcast(message)
+					client.send("Error: invalid message \"" + msg.strip() + "\"\r\n")
+				elif mtuple[0] < 1 or mtuple[0] > self.__len__:
+					print "Error: " + str(mtuple[0]) + " not found"
+					client.send("Error: " + str(mtuple[0]) + " not found")
+				elif mtuple[0] == self.__len__:
+					print "Broadcasting"
+					self.broadcast(msg)
 				else:
-					if mtuple[1][0] == '0' and len(mtuple[1]) == 1:
+					if mtuple[1][0] == '0' and len(mtuple[1]) == 3:
 						self.remove(mtuple[0]) 
+						if mtuple[0] == n: return
 					else: 
 						msg = str(n) + ": " + mtuple[1]
-						self.connections[mtuple[0]].send(msg)
+						print msg
+						self.connections[mtuple[0]][0].send(msg)
 			except:
 				break
 		self.remove(n)
 
 	def broadcast(self, msg):
 		for key, connection in self.connections.iteritems():
-			connection.send(msg)
+			print "Sending to " + str(connection)
+			connection[0].send(msg)
 
 	def run(self):
+		self.server.listen(5)
 		while 1:
 			client = self.server.accept()
 			self.add(client)
@@ -129,10 +141,13 @@ class ConnectionHandler(Thread):
 
 def main():
 
-	parse_args()
-	handle = ConnectionHandler()
-	handle.start()
-	handle.join()
+	parseargs()
+	handle = ConnectionHandler(size=3)
+	handle.run()
+	#t = Thread(target=handle.run)
+	
+	#t.start()
+	#t.join()
 
 if __name__ == '__main__':  
 	main()
