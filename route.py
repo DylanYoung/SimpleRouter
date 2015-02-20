@@ -4,8 +4,9 @@ from socket import (
 			SO_REUSEADDR, gethostname
 			)
 from threading import Thread, Timer, Lock
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import os
+import sys
 
 ACCESS_ADDR = ''
 PORT = 23456
@@ -14,11 +15,13 @@ NOTFOUND = "NOTFOUND\0"
 RESERVED = -1
 lock = Lock()
 
-def parseargs():
+def parseargs(args):
 	verbose = "verbose output"
 	pars = ArgumentParser(
-		prog='CacheHTTP',
-	    fromfile_prefix_chars='<'
+		prog='Route',
+		formatter_class=ArgumentDefaultsHelpFormatter,
+	    fromfile_prefix_chars='<',
+	    description='Route messages between clients'
 	)
 	pars.add_argument(
 		'-v','--verbose', 
@@ -29,17 +32,17 @@ def parseargs():
 	pars.add_argument(
 		'--version', 
 		action='version', 
-		version='%(prog)s 2.0'
+		version='%(prog)s 0.1'
 	)
 	
 	pars.add_argument(
-		'--port', '-p',
-		nargs='?',
+		'PORT',
+		nargs = '?',
 		default=PORT,
-		const=PORT
+		help='The port number for the server'
 	)
 
-	return pars.parse_args()
+	return pars.parse_args(args)
 
 def serversocket(port):
 	s = socket(AF_INET, SOCK_STREAM)
@@ -141,13 +144,9 @@ class ConnectionHandler:
 
 def main():
 
-	parseargs()
-	handle = ConnectionHandler(size=3)
+	parseargs(sys.argv)
+	handle = ConnectionHandler()
 	handle.run()
-	#t = Thread(target=handle.run)
-	
-	#t.start()
-	#t.join()
 
 if __name__ == '__main__':  
 	main()
