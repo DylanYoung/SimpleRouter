@@ -1,7 +1,8 @@
 from socket import (
 			socket, AF_INET,
 			SOCK_STREAM, SOL_SOCKET, 
-			SO_REUSEADDR, gethostname
+			SHUT_RDWR, 
+			SO_REUSEADDR, gethostname,
 			)
 from threading import Thread, Timer, Lock
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -43,7 +44,6 @@ def parseargs(args):
 	pars.add_argument(
 		'--size',
 		type=int,
-		nargs=1,
 		choices=(3,15,63,255,511,1023),
 		default=255,
 		help="The maximum number of clients to accept"
@@ -62,8 +62,7 @@ class ConnectionHandler:
 	def __init__(self, port = PORT, size = 255, verbose=False):
 		self.server = serversocket(port)
 		self.connections = {}
-		self.free = {i for i in range(size)}
-		self.free.remove(0)
+		self.free = {i for i in range(1, size)}
 		self.__len__ = size
 		self.verbose = verbose
 
@@ -73,11 +72,11 @@ class ConnectionHandler:
 	def __str__(self):
 		return str(self.connections)
 
-	def __parse_message__(self, msg):
+	def __parse_msg__(self, msg):
 		mtuple = msg.split(":", 2)
 		try: 
 			mtuple[0] = int(mtuple[0])
-			mtuple[1] = mtuple[1].strip(" ")
+			mtuple[1] = mtuple[1].strip()
 		except ValueError as e:
 			return -1
 		return mtuple
@@ -97,7 +96,7 @@ class ConnectionHandler:
 		self.connections[n] = client
 		if self.verbose:
 			print "Client " + str(n) + " added: " + str(client)
-		t = Thread(target=self.route, args=(client[0],n,))
+		t = Thread(target=self.route, args=(n,))
 		t.start()
 
 	def remove(self,key):
@@ -106,38 +105,49 @@ class ConnectionHandler:
 		if c != None:
 			if self.verbose:
 				print "Removed address " + str(key) + ": " + str(c)
-				print "Free addresses: " + str(self.free)
-			c[0].close()
+				#print "Free addresses: " + str(self.free)
+			try:
+				c[0].shutdown(SHUT_RDWR)
+				c[0].close()
+			except:
+				pass
 
-	def route(self, client, n):
+	def route(self, n):
+		client = self.connections[n][0]
 		while 1:
 			try:
 				msg = client.recv(2048)
-				mtuple = self.__parse_message__(msg)
+				mtuple = self.__parse_msg__(msg)
 				if mtuple == -1:
-					client.send("Error: invalid message \"" + msg.strip() + "\"\r\n")
+					client.send("Error: invalid message \"" + msg + "\"\r\n")
 				elif mtuple[0] < 1 or mtuple[0] > self.__len__:
 					print "Error: " + str(mtuple[0]) + " not found"
 					client.send("Error: " + str(mtuple[0]) + " not found")
 				elif mtuple[0] == self.__len__:
-					self.broadcast(msg)
+					if mtuple[1] == "0": msg = "0"
+					self.broadcast(msg.strip())
 				else:
-					if mtuple[1][0] == '0' and len(mtuple[1]) == 3:
+					if mtuple[1] == '0':
 						self.remove(mtuple[0]) 
 						if mtuple[0] == n: return
 					else: 
 						msg = str(n) + ": " + mtuple[1]
 						if self.verbose: print "Sending "+ msg
-						self.connections[mtuple[0]][0].send(msg)
+						self.connections[mtuple[0]][0].send(msg+"\r\n")
 			except:
 				break
 		self.remove(n)
 
-	def broadcast(self, msg):
-		if self.verbose: print "Broadcasting " + msg.strip()
-		for key, connection in self.connections.iteritems():
-			if self.verbose: print "Sending to " + str(connection)
-			connection[0].send(msg)
+	def broadcast(self, msg):	
+		if msg == "0":
+			if self.verbose: print "Tearing down\r\n"
+			for key in self.connections:
+				self.remove(key)
+		else:
+			if self.verbose: print "Broadcasting " + msg
+			for key, connection in self.connections.iteritems():
+				if self.verbose: print "Sending to " + str(connection)
+				connection[0].send(msg + "\r\n")
 
 	def run(self):
 		self.server.listen(5)
