@@ -18,7 +18,6 @@ lock = Lock()
 def parseargs(args):
 	verbose = "verbose output"
 	pars = ArgumentParser(
-		prog='Route',
 		formatter_class=ArgumentDefaultsHelpFormatter,
 	    fromfile_prefix_chars='<',
 	    description='Route messages between clients'
@@ -39,7 +38,8 @@ def parseargs(args):
 		'PORT',
 		nargs = '?',
 		default=PORT,
-		help='The port number for the server'
+		help='The port number for the server',
+		type=int
 	)
 
 	return pars.parse_args(args)
@@ -144,8 +144,8 @@ class ConnectionHandler:
 
 def main():
 
-	parseargs(sys.argv)
-	handle = ConnectionHandler()
+	args = parseargs(sys.argv[1:])
+	handle = ConnectionHandler(port=args.PORT)
 	handle.run()
 
 if __name__ == '__main__':  
