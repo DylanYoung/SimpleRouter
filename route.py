@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+
+"""Route messages between clients. \
+				Tested with Python 2.7.6"""
 ##### Imports #####
 from threading import Thread
 from sys import argv
@@ -18,6 +22,7 @@ ACCESS_ADDR = ''
 PORT = 23456
 BUFFSIZE = 2048
 SIZE = 255
+VERSION = '1.0'
 ##########################
 
 ####### Argument Parser #######
@@ -26,8 +31,7 @@ def parseargs(args):
 	pars = ArgumentParser(
 		formatter_class=ArgumentDefaultsHelpFormatter,
 	    fromfile_prefix_chars='<',
-	    description='Route messages between clients. \
-						Tested with Python 2.7.6'
+	    description=__doc__
 	)
 	pars.add_argument(
 		'PORT',
@@ -44,7 +48,7 @@ def parseargs(args):
 	pars.add_argument(
 		'--version',
 		action='version',
-		version='%(prog)s 0.1'
+		version='%(prog)s ' + VERSION
 	)
 	pars.add_argument(
 		'--size',
@@ -55,6 +59,16 @@ def parseargs(args):
 		help="The maximum number N of clients to \
 				accept (2 < N < 1024).\
 				Note: one client is reserved."
+	)
+
+	pars.add_argument(
+			'--buffer', '-b',
+			type=int,
+			metavar='M',
+			choices=range(2048,10240),
+			default=BUFFSIZE,
+			help="The maximum size M of messages to \
+					accept (2048 < M < 10240)"
 	)
 	return pars.parse_args(args)
 ####################################################
@@ -90,43 +104,20 @@ class ConnectionHandler:
 
 	def __len__(self):
 		return len(connections)
-#####################
 
-	# Parse message into target and string
-	def __parse_msg__(self, msg):
-		mtuple = msg.split(":", 2)
-		try:
-			mtuple[0] = int(mtuple[0])
-			mtuple[1] = mtuple[1].strip()
-		except ValueError:
-			return -1
-		if mtuple[0] < 1 or mtuple[0] > self.size:
-			mtuple[0] = -1
-		return mtuple
+	def __contains__(self, key):
+		return (key in self.connections)
 
-	# Add a new client if possible
-	def add(self, client):
-		try:
-			# Get connection address
-			n = self.free.pop()
-		except KeyError:
-			# No addresses available
-			client[0].send("Sorry. The router is full :(\r\n")
-			client[0].close()
-			if self.verbose:
-				print "Error: connection rejected"
-			return
-		# Send address and add connection
-		client[0].send(str(n)+"\r\n")
-		self.connections[n] = client
-		if self.verbose:
-			print "Client " + str(n) + " added: " + str(client)
-		# Route the client requests
-		t = Thread(target=self.route, args=(n,))
-		t.start()
+	def __getitem__(self, key):
+			return self.connections[key]
 
-	# Remove the client addressed by key
-	def remove(self,key):
+	def __setitem__(self, key, value):
+		if key > 0 and key < self.size:
+			self.connections[key] = value
+		else:
+			raise KeyError
+
+	def __delitem__(self, key):
 		# Pop the connection and mark address available
 		self.free.add(key);
 		c = self.connections.pop(key, None)
@@ -143,20 +134,64 @@ class ConnectionHandler:
 				# Client is already closed
 				pass
 
+	def __missing__(self, key):
+		return None
+
+	# Broadcast a teardown and close the server
+	def __del__(self):
+		self.teardown()
+		self.server.close()
+
+#####################
+
+	# Parse message into target and string
+	def __parse_msg__(self, msg):
+		mtuple = msg.split(":", 2)
+		try:
+			mtuple[0] = int(mtuple[0])
+			mtuple[1] = mtuple[1].strip()
+		except ValueError:
+			return -1
+		if mtuple[0] not in self and mtuple[0] != self.size:
+			mtuple[1] = -1
+		return mtuple
+
+	# Add a new client if possible
+	def add(self, client):
+		try:
+			# Get connection address
+			n = self.free.pop()
+		except KeyError:
+			# No addresses available
+			client[0].send("Sorry. The router is full :(\r\n")
+			client[0].close()
+			if self.verbose:
+				print "Error: connection rejected"
+			return
+		# Send address and add connection
+		client[0].send(str(n)+"\r\n")
+		self[n] = client
+		if self.verbose:
+			print "Client " + str(n) + " added: " + str(client)
+		# Route the client requests
+		t = Thread(target=self.route, args=(n,))
+		t.start()
+
+
 	# Receive and route messages from client at
 	#  address n.
 	#  Should be threaded to avoid blocking
 	def route(self, n):
 		while 1:
 			try:
-				msg = self.connections[n][0].recv(BUFFSIZE)
+				msg = self.connections[n][0].recv(BUFFSIZE).strip()
 				mtuple = self.__parse_msg__(msg)
 				# invalid message format
 				if mtuple == -1:
 					msg = "Error: invalid message \"" + msg + "\""
 					self.send(n, msg)
 				# address not found
-				elif mtuple[0] == -1:
+				elif mtuple[1] == -1:
 					msg = "Error: " + str(mtuple[0]) + " not found"
 					self.send(n, msg)
 				# No Errors
@@ -168,7 +203,7 @@ class ConnectionHandler:
 							return
 						# Close request
 						else:
-							self.remove(mtuple[0])
+							del self[mtuple[0]]
 							if mtuple[0] == n: return
 					else:
 						# Broadcast request
@@ -181,7 +216,7 @@ class ConnectionHandler:
 			except:
 				# gracefully clean up upon any exceptions
 				break
-		self.remove(n)
+		del self[n]
 
 	# Handle broadcast requests
 	def broadcast(self, msg):
@@ -194,17 +229,18 @@ class ConnectionHandler:
 	def send(self, to, msg):
 		if self.verbose:
 			print "Sending to " + str(to) + ": " + msg
-		self.connections[to].send(msg + "\r\n")
+		self[to][0].send(msg + "\r\n")
 
 	# Perform teardowns
 	def teardown(self):
 		if self.verbose: print "Tearing down\r\n"
 		for key in self.connections:
-			self.remove(key)
+			del self[key]
 
 
 	# Start listening and accepting clients
-	def run(self):
+	# callable instance
+	def __call__(self):
 		self.server.listen(5)
 		while 1:
 			try:
@@ -213,13 +249,9 @@ class ConnectionHandler:
 			except:
 				# oops
 				break
-		self.close()
+		del self
 
-	# Broadcast a teardown and close the server
-	def close(self):
-		self.teardown()
-		self.server.close()
-		del(self)
+
 
 def main():
 
@@ -231,7 +263,7 @@ def main():
 								size=args.size,
 								verbose=args.verbose)
 	# Accept connections
-	handle.run()
+	handle()
 
 if __name__ == '__main__':
 	main()

@@ -1021,20 +1021,22 @@ body .markdown-body
 <p>Written with an OOP approach, though I think it makes the<br />
 program unnecessarily complicated, I&rsquo;ve continued it because<br />
 that&rsquo;s how I started. </p>
-<h2 id="to-run-on-port-23456"><a name="user-content-to-run-on-port-23456" href="#to-run-on-port-23456" class="headeranchor-link" aria-hidden="true"><span class="headeranchor"></span></a>To Run [on port 23456]:</h2>
-<p>python route.py</p>
+<h2 id="to-run"><a name="user-content-to-run" href="#to-run" class="headeranchor-link" aria-hidden="true"><span class="headeranchor"></span></a>To Run:</h2>
+<p>./route.py [23456]</p>
 <h2 id="full-usage"><a name="user-content-full-usage" href="#full-usage" class="headeranchor-link" aria-hidden="true"><span class="headeranchor"></span></a>Full Usage:</h2>
-<pre><code class="bash">usage: route.py [-h] [-v] [--version] [--size N] [PORT]
+<pre><code class="bash">usage: route.py [-h] [-v] [--version] [--size N] [--buffer M] [PORT]
 
 Route messages between clients. Tested with Python 2.7.6
 
 positional arguments:
-  PORT           The port number for the server (default: 23456)
+  PORT              The port number for the server (default: 23456)
 
 optional arguments:
-  -h, --help     show this help message and exit
-  -v, --verbose  verbose output (default: False)
-  --version      show program's version number and exit
-  --size N       The maximum number N of clients to accept (2 &lt; N &lt; 1024).
-                 Note: one client is reserved. (default: 255)
+  -h, --help        show this help message and exit
+  -v, --verbose     verbose output (default: False)
+  --version         show program's version number and exit
+  --size N          The maximum number N of clients to accept (2 &lt; N &lt; 1024).
+                    Note: one client is reserved. (default: 255)
+  --buffer M, -b M  The maximum size M of messages to accept (2048 &lt; M &lt;
+                    10240) (default: 2048)
 </code></pre></article></body></html>
