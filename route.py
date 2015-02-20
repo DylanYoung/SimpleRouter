@@ -1,20 +1,18 @@
 from socket import (
 			socket, AF_INET,
-			SOCK_STREAM, SOL_SOCKET, 
-			SHUT_RDWR, 
+			SOCK_STREAM, SOL_SOCKET,
+			SHUT_RDWR,
 			SO_REUSEADDR, gethostname,
 			)
-from threading import Thread, Timer, Lock
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-import os
-import sys
+from threading import Thread
+from argparse import (
+			ArgumentParser,
+			ArgumentDefaultsHelpFormatter
+			)
+from sys import argv
 
 ACCESS_ADDR = ''
 PORT = 23456
-FOUND = "FOUND\0\0\0\0"
-NOTFOUND = "NOTFOUND\0"
-RESERVED = -1
-lock = Lock()
 
 def parseargs(args):
 	verbose = "verbose output"
@@ -31,25 +29,25 @@ def parseargs(args):
 		type=int
 	)
 	pars.add_argument(
-		'-v','--verbose', 
+		'-v','--verbose',
 		help=verbose,
 		action='store_true'
-	) 
+	)
 
 	pars.add_argument(
-		'--version', 
-		action='version', 
+		'--version',
+		action='version',
 		version='%(prog)s 0.1'
 	)
 	pars.add_argument(
 		'--size',
 		type=int,
-		choices=(3,15,63,255,511,1023),
+		metavar='N',
+		choices=range(3,1023),
 		default=255,
-		help="The maximum number of clients to accept"
+		help="The maximum number N of clients to accept (2 < N < 1024).\
+				Note: one client is reserved."
 	)
-
-
 	return pars.parse_args(args)
 
 def serversocket(port):
@@ -63,7 +61,7 @@ class ConnectionHandler:
 		self.server = serversocket(port)
 		self.connections = {}
 		self.free = {i for i in range(1, size)}
-		self.__len__ = size
+		self.size = size
 		self.verbose = verbose
 
 	def __repr__(self):
@@ -74,7 +72,7 @@ class ConnectionHandler:
 
 	def __parse_msg__(self, msg):
 		mtuple = msg.split(":", 2)
-		try: 
+		try:
 			mtuple[0] = int(mtuple[0])
 			mtuple[1] = mtuple[1].strip()
 		except ValueError as e:
@@ -102,7 +100,7 @@ class ConnectionHandler:
 	def remove(self,key):
 		self.free.add(key);
 		c = self.connections.pop(key, None)
-		if c != None:
+		if c is not None:
 			if self.verbose:
 				print "Removed address " + str(key) + ": " + str(c)
 				#print "Free addresses: " + str(self.free)
@@ -120,17 +118,17 @@ class ConnectionHandler:
 				mtuple = self.__parse_msg__(msg)
 				if mtuple == -1:
 					client.send("Error: invalid message \"" + msg + "\"\r\n")
-				elif mtuple[0] < 1 or mtuple[0] > self.__len__:
+				elif mtuple[0] < 1 or mtuple[0] > self.size:
 					print "Error: " + str(mtuple[0]) + " not found"
 					client.send("Error: " + str(mtuple[0]) + " not found")
-				elif mtuple[0] == self.__len__:
+				elif mtuple[0] == self.size:
 					if mtuple[1] == "0": msg = "0"
 					self.broadcast(msg.strip())
 				else:
 					if mtuple[1] == '0':
-						self.remove(mtuple[0]) 
+						self.remove(mtuple[0])
 						if mtuple[0] == n: return
-					else: 
+					else:
 						msg = str(n) + ": " + mtuple[1]
 						if self.verbose: print "Sending "+ msg
 						self.connections[mtuple[0]][0].send(msg+"\r\n")
@@ -138,7 +136,7 @@ class ConnectionHandler:
 				break
 		self.remove(n)
 
-	def broadcast(self, msg):	
+	def broadcast(self, msg):
 		if msg == "0":
 			if self.verbose: print "Tearing down\r\n"
 			for key in self.connections:
@@ -157,18 +155,17 @@ class ConnectionHandler:
 		self.close()
 
 	def close(self):
-		for key in self.connections:
-			self.remove(key)
+		self.broadcast("0")
 		self.server.close()
 		del(self)
 
 def main():
 
-	args = parseargs(sys.argv[1:])
-	handle = ConnectionHandler(port=args.PORT, 
-								size=args.size, 
+	args = parseargs(argv[1:])
+	handle = ConnectionHandler(port=args.PORT,
+								size=args.size,
 								verbose=args.verbose)
 	handle.run()
 
-if __name__ == '__main__':  
+if __name__ == '__main__':
 	main()
