@@ -189,8 +189,9 @@ class ConnectionHandler:
 				msgs = self.connections[n][0].recv(BUFFSIZE)
 				msgs = msg.split("\n")
 				msgs[0] = part + msgs[0]
-				part = msgs[-1]
-				msgs = msgs[0:-1]
+				if len(msgs) > 1:
+					part = msgs[-1]
+					msgs = msgs[0:-1]
 				for msg in msgs:
 					mtuple = self.__parse_msg__(msg)
 					# invalid message format
