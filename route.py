@@ -182,37 +182,44 @@ class ConnectionHandler:
 	#  address n.
 	#  Should be threaded to avoid blocking
 	def route(self, n):
+		part = ""
 		while 1:
 			try:
-				msg = self.connections[n][0].recv(BUFFSIZE).strip()
-				mtuple = self.__parse_msg__(msg)
-				# invalid message format
-				if mtuple == -1:
-					msg = "Error: invalid message \"" + msg + "\""
-					self.send(n, msg)
-				# address not found
-				elif mtuple[1] == -1:
-					msg = "Error: " + str(mtuple[0]) + " not found"
-					self.send(n, msg)
-				# No Errors
-				else:
-					if mtuple[1] == '0':
-						# Teardown request
-						if mtuple[0] == self.size:
-							self.teardown()
-							return
-						# Close request
-						else:
-							del self[mtuple[0]]
-							if mtuple[0] == n: return
+
+				msgs = self.connections[n][0].recv(BUFFSIZE)
+				msgs = msg.split("\r\n")
+				msgs[0] = part + msgs[0]
+				part = msgs[-1]
+				msgs = msgs[0:-1]
+				for msg in msgs:
+					mtuple = self.__parse_msg__(msg)
+					# invalid message format
+					if mtuple == -1:
+						msg = "Error: invalid message \"" + msg + "\""
+						self.send(n, msg)
+					# address not found
+					elif mtuple[1] == -1:
+						msg = "Error: " + str(mtuple[0]) + " not found"
+						self.send(n, msg)
+					# No Errors
 					else:
-						# Broadcast request
-						if mtuple[0] == self.size:
-							self.broadcast(msg.strip())
-						# Message request
+						if mtuple[1] == '0':
+							# Teardown request
+							if mtuple[0] == self.size:
+								self.teardown()
+								return
+							# Close request
+							else:
+								del self[mtuple[0]]
+								if mtuple[0] == n: return
 						else:
-							msg = ": ".join([str(n), mtuple[1]])
-							self.send(mtuple[0], msg)
+							# Broadcast request
+							if mtuple[0] == self.size:
+								self.broadcast(msg.strip())
+							# Message request
+							else:
+								msg = ": ".join([str(n), mtuple[1]])
+								self.send(mtuple[0], msg)
 			except:
 				# gracefully clean up upon any exceptions
 				break
