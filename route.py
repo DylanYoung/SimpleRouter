@@ -204,7 +204,7 @@ class ConnectionHandler:
 						self.send(n, msg)
 					# No Errors
 					else:
-						if mtuple[1] == '0':
+						if mtuple[1].strip() == '0':
 							# Teardown request
 							if mtuple[0] == self.size:
 								self.teardown()
