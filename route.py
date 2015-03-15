@@ -187,7 +187,7 @@ class ConnectionHandler:
 			try:
 
 				msgs = self.connections[n][0].recv(BUFFSIZE)
-				msgs = msg.split("\n")
+				msgs = msgs.split("\n")
 				print msgs
 				msgs[0] = part + msgs[0]
 				if len(msgs) > 1:
