@@ -60,7 +60,6 @@ def parseargs(args):
 				accept (2 < N < 1024).\
 				Note: one client is reserved."
 	)
-
 	pars.add_argument(
 			'--buffer', '-b',
 			type=int,
@@ -187,6 +186,8 @@ class ConnectionHandler:
 			try:
 
 				msgs = self.connections[n][0].recv(BUFFSIZE)
+				if not msgs:
+					break
 				msgs = msgs.split("\n")
 				msgs[0] = part + msgs[0]
 				if len(msgs) > 1:
