@@ -149,7 +149,7 @@ class ConnectionHandler:
 		mtuple = msg.split(":", 1)
 		try:
 			mtuple[0] = int(mtuple[0])
-			mtuple[1] = mtuple[1].strip()
+			#mtuple[1] = mtuple[1].strip()
 		except ValueError:
 			return -1
 		if mtuple[0] not in self and mtuple[0] != self.size:
@@ -188,7 +188,6 @@ class ConnectionHandler:
 
 				msgs = self.connections[n][0].recv(BUFFSIZE)
 				msgs = msgs.split("\n")
-				print msgs
 				msgs[0] = part + msgs[0]
 				if len(msgs) > 1:
 					part = msgs[-1]
