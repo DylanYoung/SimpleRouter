@@ -146,7 +146,7 @@ class ConnectionHandler:
 
 	# Parse message into target and string
 	def __parse_msg__(self, msg):
-		mtuple = msg.split(":", 2)
+		mtuple = msg.split(":", 1)
 		try:
 			mtuple[0] = int(mtuple[0])
 			mtuple[1] = mtuple[1].strip()
